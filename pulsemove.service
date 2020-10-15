@@ -1,0 +1,10 @@
+[Unit]
+Description=PulseMove user
+After=pulseaudio.service
+After=sound.target
+
+[Service]
+ExecStart=%h/.bin/pulsemove
+
+[Install]
+WantedBy=default.target
