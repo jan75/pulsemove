@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(pulsemove)
+project(pulsemove VERSION "1.0.1")
 
 set(CMAKE_CXX_STANDARD 11)
 
