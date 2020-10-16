@@ -5,6 +5,7 @@ After=sound.target
 
 [Service]
 ExecStart=%h/.bin/pulsemove
+LogLevelMax=6
 
 [Install]
 WantedBy=default.target
