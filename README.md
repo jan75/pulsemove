@@ -13,9 +13,11 @@ sink. Other, currently not active sink inputs with their last sink saved aren't 
 little tool comes in._
 
 # Usage 
-Run the binary directly or use the included `pulsemove.service` file to create a (user) systemd service.
+Run the binary directly or use the included `pulsemove.service` file to create a (user) systemd service. 
+
+If run as a service the log level can be adjusted by changing the value of `LogLevelMax` (higher number = more messages). 
 
 # Build 
-Build using `cmake`. Dependencies are:
+Build using `cmake`. Dependencies are: 
 - pulseaudio (pulse) 
 - pthreads 
