@@ -15,11 +15,11 @@ std::condition_variable sink_input_info_cb_cv;
 std::condition_variable sink_input_move_success_cb_cv;
 
 static void subscribe_success_cb(pa_context *paContext, int success, void *userdata) {
-    //std::cout << "subscribe_success_cb called with paContext: " << paContext << " success: " << success << " userdata: " << userdata << std::endl;
+    syslog(LOG_DEBUG, "subscribe_success_cb called");
 }
 
 static void subscribe_event_cb(pa_context *paContext, pa_subscription_event_type eventType, int idx, void *userdata) {
-    //std::cout << "subscribe_event_cb called with paContext: " << paContext << " eventType: " << eventType << " idx: " << idx << " userdata: " << userdata << std::endl;
+    syslog(LOG_DEBUG, "subscribe_event_cb called for index %d", idx);
 
     if((eventType & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) == PA_SUBSCRIPTION_EVENT_SINK_INPUT) {
         if((eventType & PA_SUBSCRIPTION_EVENT_TYPE_MASK) == PA_SUBSCRIPTION_EVENT_NEW) {
@@ -33,7 +33,7 @@ static void subscribe_event_cb(pa_context *paContext, pa_subscription_event_type
 }
 
 static void server_info_cb(pa_context *paContext, const pa_server_info *serverInfo, void *userdata) {
-    //std::cout << "server_info_cb called pa_server_info: " << serverInfo << std::endl;
+    syslog(LOG_DEBUG, "server_info_cb called");
 
     PulseMoveContext *pulseMoveContext = static_cast<PulseMoveContext *>(userdata);
     std::string default_sink_name = serverInfo->default_sink_name;
@@ -43,9 +43,9 @@ static void server_info_cb(pa_context *paContext, const pa_server_info *serverIn
 }
 
 static void sink_info_cb(pa_context *paContext, const pa_sink_info *paSinkInfo, int eol, void *userdata) {
-    //std::cout << "sink_info_cb called pa_sink_info: " << paSinkInfo << " eol: " << eol << std::endl;
+    syslog(LOG_DEBUG, "sink_info_cb called. eol: %d", eol);
 
-    if(eol != 0) {
+    if(eol > 0) {
         sink_info_cb_cv.notify_one();
         return;
     }
@@ -56,9 +56,9 @@ static void sink_info_cb(pa_context *paContext, const pa_sink_info *paSinkInfo, 
 }
 
 static void sink_input_info_cb(pa_context *paContext, const pa_sink_input_info *paSinkInputInfo, int eol, void *userdata) {
-    //std::cout << "sink_info_cb called pa_sink_info: " << paSinkInfo << " eol: " << eol << std::endl;
+    syslog(LOG_DEBUG, "sink_input_info_cb called. eol: %d", eol);
 
-    if(eol != 0) {
+    if(eol > 0) {
         sink_input_info_cb_cv.notify_one();
         return;
     }
@@ -72,7 +72,7 @@ static void sink_input_info_cb(pa_context *paContext, const pa_sink_input_info *
 }
 
 static void sink_input_move_success_cb(pa_context *paContext, int success, void *userdata) {
-    //std::cout << "sink_input_move_success_cb called with paContext: " << paContext << " success: " << success << " userdata: " << userdata << std::endl;
+    syslog(LOG_DEBUG, "sink_input_move_success_cb called. success: %d", success);
 
     sink_input_move_success_cb_cv.notify_one();
 }
@@ -125,12 +125,11 @@ int main() {
 
 
     std::unique_lock<std::mutex> lock(mutex);
-    const std::chrono::seconds cb_timeout(3);
+    const std::chrono::seconds cb_timeout(10);
 
     while(true) {
         event_cb_cv.wait(lock);
         syslog(LOG_DEBUG, "New sink input added, checking whether it needs moving");
-        //std::cout << "New sink input added, checking whether it needs moving" << std::endl;
 
         pa_threaded_mainloop_lock(paThreadedMainloop);
         pa_context_get_server_info(
@@ -139,11 +138,13 @@ int main() {
                 moveContext);
         pa_threaded_mainloop_unlock(paThreadedMainloop);
 
+
         std::cv_status server_info_cb_cv_res = server_info_cb_cv.wait_for(lock, cb_timeout);
         if(server_info_cb_cv_res == std::cv_status::timeout) {
-            syslog(LOG_WARNING, "PulseAudio API request (callback) timed out, is PulseAudio still running? Quitting");
+            syslog(LOG_WARNING, "PulseAudio API request (callback) timed out after requesting server info. Quitting");
             break;
         }
+        syslog(LOG_DEBUG, "Server info received");
 
         int sink_input_idx = moveContext->sink_input_idx;
         const char *default_sink_name = moveContext->default_sink_name.c_str();
@@ -163,13 +164,15 @@ int main() {
 
         std::cv_status sink_info_cb_cv_res = sink_info_cb_cv.wait_for(lock, cb_timeout);
         std::cv_status sink_input_info_cb_cv_res = sink_input_info_cb_cv.wait_for(lock, cb_timeout);
+
         if(sink_info_cb_cv_res == std::cv_status::timeout || sink_input_info_cb_cv_res == std::cv_status::timeout) {
-            syslog(LOG_WARNING, "PulseAudio API request (callback) timed out, is PulseAudio still running? Quitting");
+            syslog(LOG_WARNING, "PulseAudio API request (callback) timed out after requesting sink info or sink input info. Quitting");
             break;
         }
-
         int input_sink_idx = moveContext->sink_idx;
         int default_sink_idx = moveContext->default_sink_idx;
+        syslog(LOG_DEBUG, "Info for default sink \"%s\" (%d) and info for sink input  \"%s\" (%d) received", moveContext->default_sink_name.c_str(), default_sink_idx, moveContext->sink_input_name.c_str(), input_sink_idx);
+
         if(input_sink_idx == default_sink_idx) {
             syslog(LOG_INFO, "Sink input \"%s\" (%d) already on default sink \"%s\" (%d)", moveContext->sink_input_name.c_str(), sink_input_idx, moveContext->default_sink_name.c_str(), default_sink_idx);
             moveContext->reset();
@@ -186,6 +189,7 @@ int main() {
         pa_threaded_mainloop_unlock(paThreadedMainloop);
 
         std::cv_status sink_input_move_success_cb_cv_res = sink_input_move_success_cb_cv.wait_for(lock, cb_timeout);
+
         if(sink_input_move_success_cb_cv_res == std::cv_status::timeout) {
             syslog(LOG_WARNING, "PulseAudio API request (callback) timed out, is PulseAudio still running? Quitting");
             break;
