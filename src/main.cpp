@@ -174,12 +174,17 @@ int main() {
         pa_threaded_mainloop_unlock(paThreadedMainloop);
 
         std::cv_status sink_info_cb_cv_res = sink_info_cb_cv.wait_for(lock, cb_timeout);
-        std::cv_status sink_input_info_cb_cv_res = sink_input_info_cb_cv.wait_for(lock, cb_timeout);
-
-        if(sink_info_cb_cv_res == std::cv_status::timeout || sink_input_info_cb_cv_res == std::cv_status::timeout) {
-            syslog(LOG_WARNING, "PulseAudio API request (callback) timed out after requesting sink info or sink input info. Quitting");
-            break;
+        if(sink_info_cb_cv_res == std::cv_status::timeout) {
+            syslog(LOG_INFO, "PulseAudio API request (callback) timed out after requesting sink info. Is this sink still alive? Skipping");
+            continue;
         }
+
+        std::cv_status sink_input_info_cb_cv_res = sink_input_info_cb_cv.wait_for(lock, cb_timeout);
+        if(sink_input_info_cb_cv_res == std::cv_status::timeout) {
+            syslog(LOG_INFO, "PulseAudio API request (callback) timed out after requesting sink input info. Is this sink input still alive? Skipping");
+            continue;
+        }
+
         int input_sink_idx = moveContext->sink_idx;
         int default_sink_idx = moveContext->default_sink_idx;
         syslog(LOG_DEBUG, "Info for default sink \"%s\" (%d) and info for sink input  \"%s\" (%d) received", moveContext->default_sink_name.c_str(), default_sink_idx, moveContext->sink_input_name.c_str(), input_sink_idx);
