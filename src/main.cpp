@@ -50,9 +50,11 @@ static void sink_info_cb(pa_context *paContext, const pa_sink_info *paSinkInfo, 
         return;
     }
 
-    PulseMoveContext *pulseMoveContext = static_cast<PulseMoveContext *>(userdata);
-    int default_sink_idx = paSinkInfo->index;
-    pulseMoveContext->default_sink_idx = default_sink_idx;
+    if(paSinkInfo != nullptr) {
+        PulseMoveContext *pulseMoveContext = static_cast<PulseMoveContext *>(userdata);
+        int default_sink_idx = paSinkInfo->index;
+        pulseMoveContext->default_sink_idx = default_sink_idx;
+    }
 }
 
 static void sink_input_info_cb(pa_context *paContext, const pa_sink_input_info *paSinkInputInfo, int eol, void *userdata) {
@@ -63,12 +65,15 @@ static void sink_input_info_cb(pa_context *paContext, const pa_sink_input_info *
         return;
     }
 
-    PulseMoveContext *pulseMoveContext = static_cast<PulseMoveContext *>(userdata);
-    int sink_idx = paSinkInputInfo->sink;
-    std::string sink_input_name = paSinkInputInfo->name;
+    if(paSinkInputInfo != nullptr) {
+        PulseMoveContext *pulseMoveContext = static_cast<PulseMoveContext *>(userdata);
+        int sink_idx = paSinkInputInfo->sink;
+        std::string sink_input_name = paSinkInputInfo->name;
 
-    pulseMoveContext->sink_idx = sink_idx;
-    pulseMoveContext->sink_input_name.append(sink_input_name);
+        pulseMoveContext->sink_idx = sink_idx;
+        pulseMoveContext->sink_input_name.append(sink_input_name);
+    }
+
 }
 
 static void sink_input_move_success_cb(pa_context *paContext, int success, void *userdata) {
@@ -125,7 +130,7 @@ int main() {
 
 
     std::unique_lock<std::mutex> lock(mutex);
-    const std::chrono::seconds cb_timeout(10);
+    const std::chrono::seconds cb_timeout(5);
 
     while(true) {
         event_cb_cv.wait(lock);
