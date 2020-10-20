@@ -23,11 +23,17 @@ static void subscribe_event_cb(pa_context *paContext, pa_subscription_event_type
 
     if((eventType & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) == PA_SUBSCRIPTION_EVENT_SINK_INPUT) {
         if((eventType & PA_SUBSCRIPTION_EVENT_TYPE_MASK) == PA_SUBSCRIPTION_EVENT_NEW) {
+            syslog(LOG_DEBUG, "pa_subscription_event_type: %d", eventType);
+
             PulseMoveContext *pulseMoveContext = static_cast<PulseMoveContext *>(userdata);
             pulseMoveContext->sink_input_idx = idx;
 
             event_cb_cv.notify_one();
+        } else {
+            syslog(LOG_DEBUG, "(%d & PA_SUBSCRIPTION_EVENT_TYPE_MASK) != PA_SUBSCRIPTION_EVENT_NEW (%d)", eventType, (eventType & PA_SUBSCRIPTION_EVENT_TYPE_MASK));
         }
+    } else {
+        syslog(LOG_DEBUG, "(%d & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) != PA_SUBSCRIPTION_EVENT_NEW (%d)", eventType, (eventType & PA_SUBSCRIPTION_EVENT_FACILITY_MASK));
     }
 
 }
